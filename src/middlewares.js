@@ -1,48 +1,80 @@
 import multer from "multer";
-import { createS3Uploader } from "./s3";
+import { MongoClient } from "mongodb";
 
-const s3ImageUploader = createS3Uploader("images");
-const s3VideoUploader = createS3Uploader("videos");
+const uri = "mongodb+srv://rlagksalsq3:QSKg66kCtO5ZOwRW@cluster0.slo5zpz.mongodb.net/?retryWrites=true&w=majority"; // MongoDB 서버 주소
+const dbName = "Cluster0"; // 사용할 데이터베이스 이름
 
-const isProduction = process.env.NODE_ENV === "production";
+const client = new MongoClient(uri);
+
+const imageStorage = multer.diskStorage({
+  destination: "uploads/avatars/",
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
+  },
+});
+
+const videoStorage = multer.diskStorage({
+  destination: "uploads/videos/",
+  filename: (req, file, cb) => {
+    cb(null, file.originalname);
+  },
+});
 
 export const localsMiddleware = (req, res, next) => {
   res.locals.loggedIn = Boolean(req.session.loggedIn);
-  res.locals.siteNmae = "wetube";
+  res.locals.siteName = "Spongetube";
   res.locals.loggedInUser = req.session.user || {};
-  res.locals.isProduction = isProduction;
   next();
 };
 
 export const protectorMiddleware = (req, res, next) => {
   if (req.session.loggedIn) {
     return next();
+  } else {
+    req.flash("error", "Log in first.");
+    return res.redirect("/login");
   }
-  req.flash("error", "Log in first.");
-  return res.redirect("/login");
 };
 
 export const publicOnlyMiddleware = (req, res, next) => {
   if (!req.session.loggedIn) {
     return next();
+  } else {
+    req.flash("error", "Not authorized");
+    return res.redirect("/");
   }
-  req.flash("error", "Not authorized");
-  return res.redirect("/");
 };
 
 export const avatarUpload = multer({
-  dest: "uploads/avatars/",
-  limits: { fileSize: 100000000 }, // 100MB
-  storage: isProduction ? s3ImageUploader : undefined,
+  storage: imageStorage,
 });
 
 export const videoUpload = multer({
-  dest: "uploads/videos/",
-  limits: { fileSize: 100000000 }, // 100MB
-  storage: isProduction ? s3VideoUploader : undefined,
+  storage: videoStorage,
 });
 
-export const setFilePathMiddleware = (req, res, next) => {
-  req.filePath = (file) => (isProduction ? file.location : file.path);
-  next();
+export const connectToMongoDB = async () => {
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB");
+  } catch (error) {
+    console.error("Failed to connect to MongoDB", error);
+  }
 };
+
+export const closeMongoDBConnection = () => {
+  client.close();
+};
+
+export const insertDocument = async (collectionName, document) => {
+  try {
+    const db = client.db(dbName);
+    const collection = db.collection(collectionName);
+    await collection.insertOne(document);
+    console.log("Document inserted:", document);
+  } catch (error) {
+    console.error("Failed to insert document", error);
+  }
+};
+
+// 다른 MongoDB 관련 함수들을 추가해야 함

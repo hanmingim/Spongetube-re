@@ -174,21 +174,30 @@ export const postEdit = async (req, res) => {
     });
   }
 
+  const updatedFields = {
+    name,
+    email,
+    username,
+    location,
+  };
+
+  // 파일이 업로드된 경우, 파일을 저장하고 해당 파일의 경로를 사용하여 아바타 URL을 업데이트합니다.
+  if (file) {
+    const filePath = `/uploads/${file.filename}`;
+    updatedFields.avatarUrl = filePath;
+  }
+
   const updateUser = await User.findByIdAndUpdate(
     _id,
-    {
-      avatarUrl: file ? req.filePath(file) : avatarUrl,
-      name,
-      email,
-      username,
-      location,
-    },
+    updatedFields,
     { new: true },
   );
 
   req.session.user = updateUser;
   return res.redirect('/users/edit');
 };
+
+
 
 export const getChangePassword = (req, res) => {
   if (req.session.user.socialOnly === true) {
